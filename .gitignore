@@ -1,0 +1,40 @@
+# ===== 依赖 =====
+node_modules/
+
+# ===== 环境变量 (敏感,永不入库) =====
+.env
+.env.local
+.env.*.local
+
+# ===== 加密密钥 (私钥永不入库) =====
+server/keys/private.pem
+server/keys/*.key
+
+# ===== 运行时数据 =====
+server/database.sqlite
+server/database.sqlite-journal
+uploads/*
+!uploads/.gitkeep
+
+# ===== 构建产物 =====
+client/dist/
+client/dist-ssr/
+
+# ===== 日志 =====
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===== 本地工具元数据 =====
+.mimocode/
+.spec-workflow/
