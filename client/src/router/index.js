@@ -54,8 +54,10 @@ const routes = [
   }
 ]
 
+// 使用 import.meta.env.BASE_URL 让 router 自动适配 vite.config.js 里的 base
+// GitHub Pages: '/teaching-management-system/', 本地 dev: '/'
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>教学管理系统</title>
+  <!--
+    GitHub Pages SPA fallback (Rafael Pedicini 方案).
+    Pages 静态托管不支持 rewrite, 直接访问 /courses 会 404.
+    这里把 URL 编码到 query 后 302 回根路径, index.html 再解回真实路径.
+    参考: https://github.com/rafgraph/spa-github-pages
+  -->
+  <script>
+    var pathSegmentsToKeep = 1; // '/teaching-management-system' 段数
+    var l = window.location;
+    l.replace(
+      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+      l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+      l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+      (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+      l.hash
+    );
+  </script>
+</head>
+<body>
+  跳转中...
+</body>
+</html>

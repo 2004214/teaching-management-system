@@ -1,14 +1,17 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// Vercel 部署时 VITE_API_BASE_URL 指向 Render 后端, 走完整 URL 不走 proxy
-// 本地开发时未设置 VITE_API_BASE_URL, 走下面的 dev proxy 转发到本地后端
+// GitHub Pages 部署: 站点会挂在 https://<user>.github.io/<repo>/ 下,
+// 所有资源引用必须带 /<repo>/ 前缀. 通过 VITE_BASE_URL 或默认 repo 名注入.
+// 本地 dev / Vercel 部署时可以留空或设为 '/'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const proxyTarget = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
+  const base = env.VITE_BASE_URL || '/'
 
   return {
     plugins: [vue()],
+    base,
     server: {
       port: 3000,
       proxy: {
@@ -18,7 +21,6 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      // 生产包体优化: 分离 vendor 提升缓存命中率
       rollupOptions: {
         output: {
           manualChunks: {

@@ -2,15 +2,16 @@
 
 一个基于 **Vue 3 + Node.js + PostgreSQL** 的全栈教学管理系统, 支持教师、学生、管理员三种角色, 覆盖课程、作业、成绩、考勤全流程。项目内置多层加密体系保障用户数据安全。
 
-## 在线部署
+## 在线体验
 
-支持一键部署到免费云服务, 详细步骤见 [DEPLOY.md](./DEPLOY.md):
+- 站点: https://2004214.github.io/teaching-management-system/
+- 首次访问后端冷启动约 30 秒 (免费方案)
 
-- **前端** → Vercel (静态站点 + CDN)
+一键部署到免费云服务, 详细步骤见 [DEPLOY.md](./DEPLOY.md):
+
+- **前端** → GitHub Pages (Actions 自动构建)
 - **后端** → Render (Node.js Web Service, Free 计划)
 - **数据库** → Neon (PostgreSQL, Free 500 MB)
-
-配置好后即可通过 `https://<your-project>.vercel.app` 直接访问。
 
 种子账号:
 - 管理员: `admin` / `admin123`
