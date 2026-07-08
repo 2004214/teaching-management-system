@@ -1,184 +1,71 @@
-import initSqlJs from 'sql.js'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { Sequelize } from 'sequelize'
+import dotenv from 'dotenv'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+dotenv.config()
 
-const DB_PATH = path.join(__dirname, '..', 'database.sqlite')
+const {
+  NODE_ENV = 'development',
+  DATABASE_URL,
+  DB_HOST = 'localhost',
+  DB_PORT = 5432,
+  DB_NAME = 'teaching_management',
+  DB_USER = 'postgres',
+  DB_PASSWORD = '',
+  DB_DIALECT = 'postgres',
+  DB_POOL_MAX = 10,
+  DB_POOL_MIN = 0,
+  DB_LOGGING = 'false',
+  DB_SSL = 'false'
+} = process.env
 
-let db = null
+// 云端 PG (Neon / Supabase / Render PG) 通常要求 SSL
+// 规则: 显式 DB_SSL=true, 或 生产环境用 DATABASE_URL 时默认启用
+const needSSL = DB_SSL === 'true' || (NODE_ENV === 'production' && !!DATABASE_URL)
 
+const commonOptions = {
+  dialect: DB_DIALECT,
+  logging: DB_LOGGING === 'true' ? console.log : false,
+  pool: {
+    max: parseInt(DB_POOL_MAX, 10),
+    min: parseInt(DB_POOL_MIN, 10),
+    acquire: 30000,
+    idle: 10000
+  },
+  define: {
+    // 全局约定: camelCase 字段, 自动 createdAt/updatedAt
+    underscored: false,
+    freezeTableName: false
+  },
+  ...(needSSL && {
+    dialectOptions: {
+      ssl: { require: true, rejectUnauthorized: false }
+    }
+  })
+}
+
+// 方式 A: DATABASE_URL 单一连接串 (推荐用于云端 Neon/Supabase/Render PG)
+// 方式 B: DB_HOST + DB_PORT + DB_NAME + DB_USER + DB_PASSWORD (本地开发)
+export const sequelize = DATABASE_URL
+  ? new Sequelize(DATABASE_URL, commonOptions)
+  : new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
+      host: DB_HOST,
+      port: parseInt(DB_PORT, 10),
+      ...commonOptions
+    })
+
+// 初始化数据库: 连接测试 + 表同步 + 种子数据
 export const initDatabase = async () => {
-  try {
-    const SQL = await initSqlJs()
-    
-    // 检查数据库文件是否存在
-    if (fs.existsSync(DB_PATH)) {
-      const fileBuffer = fs.readFileSync(DB_PATH)
-      db = new SQL.Database(fileBuffer)
-    } else {
-      db = new SQL.Database()
-    }
-    
-    // 创建表
-    db.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        role TEXT NOT NULL DEFAULT 'student',
-        avatar TEXT,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `)
-    
-    db.run(`
-      CREATE TABLE IF NOT EXISTS courses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        teacherId INTEGER NOT NULL,
-        semester TEXT NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (teacherId) REFERENCES users(id)
-      )
-    `)
-    
-    db.run(`
-      CREATE TABLE IF NOT EXISTS course_enrollments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        courseId INTEGER NOT NULL,
-        studentId INTEGER NOT NULL,
-        enrolledAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (courseId) REFERENCES courses(id),
-        FOREIGN KEY (studentId) REFERENCES users(id),
-        UNIQUE(courseId, studentId)
-      )
-    `)
-    
-    db.run(`
-      CREATE TABLE IF NOT EXISTS assignments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        courseId INTEGER NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT,
-        deadline DATETIME NOT NULL,
-        attachments TEXT DEFAULT '[]',
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (courseId) REFERENCES courses(id)
-      )
-    `)
-    
-    db.run(`
-      CREATE TABLE IF NOT EXISTS submissions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        assignmentId INTEGER NOT NULL,
-        studentId INTEGER NOT NULL,
-        content TEXT,
-        files TEXT DEFAULT '[]',
-        score REAL,
-        feedback TEXT,
-        submittedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        gradedAt DATETIME,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (assignmentId) REFERENCES assignments(id),
-        FOREIGN KEY (studentId) REFERENCES users(id),
-        UNIQUE(assignmentId, studentId)
-      )
-    `)
-    
-    db.run(`
-      CREATE TABLE IF NOT EXISTS grades (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        courseId INTEGER NOT NULL,
-        studentId INTEGER NOT NULL,
-        assignmentId INTEGER NOT NULL,
-        score REAL NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (courseId) REFERENCES courses(id),
-        FOREIGN KEY (studentId) REFERENCES users(id),
-        FOREIGN KEY (assignmentId) REFERENCES assignments(id)
-      )
-    `)
-    
-    db.run(`
-      CREATE TABLE IF NOT EXISTS attendance (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        courseId INTEGER NOT NULL,
-        studentId INTEGER NOT NULL,
-        date DATE NOT NULL,
-        status TEXT NOT NULL DEFAULT 'present',
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (courseId) REFERENCES courses(id),
-        FOREIGN KEY (studentId) REFERENCES users(id)
-      )
-    `)
-    
-    // 保存数据库
-    saveDatabase()
-    
-    console.log('数据库初始化成功')
-    return db
-  } catch (error) {
-    console.error('数据库初始化失败:', error)
-    throw error
-  }
+  await sequelize.authenticate()
+
+  // 触发模型 + 关联加载 (必须在 sync 前)
+  await import('../models/index.js')
+
+  // 生产环境不允许 alter (使用迁移工具), 开发环境允许结构漂移
+  await sequelize.sync({ alter: NODE_ENV !== 'production' })
+
+  // 种子数据 (仅在 users 表为空时创建默认账号)
+  const { runSeed } = await import('../utils/seed.js')
+  await runSeed()
 }
 
-export const getDatabase = () => {
-  if (!db) {
-    throw new Error('数据库未初始化')
-  }
-  return db
-}
-
-export const saveDatabase = () => {
-  if (db) {
-    const data = db.export()
-    const buffer = Buffer.from(data)
-    fs.writeFileSync(DB_PATH, buffer)
-  }
-}
-
-// 简单的查询执行器
-export const executeQuery = (sql, params = []) => {
-  const database = getDatabase()
-  try {
-    const stmt = database.prepare(sql)
-    stmt.bind(params)
-    
-    const results = []
-    while (stmt.step()) {
-      results.push(stmt.getAsObject())
-    }
-    stmt.free()
-    return results
-  } catch (error) {
-    console.error('查询执行失败:', error)
-    throw error
-  }
-}
-
-// 执行插入/更新/删除
-export const executeRun = (sql, params = []) => {
-  const database = getDatabase()
-  try {
-    database.run(sql, params)
-    saveDatabase()
-    return { changes: database.getRowsModified(), lastId: database.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0] }
-  } catch (error) {
-    console.error('执行失败:', error)
-    throw error
-  }
-}
-
-export default { initDatabase, getDatabase, saveDatabase, executeQuery, executeRun }
+export default { sequelize, initDatabase }

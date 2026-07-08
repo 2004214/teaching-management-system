@@ -1,0 +1,39 @@
+# Render 后端 Blueprint (可选, 也可以在 Web UI 手动创建)
+# 使用方法: 在 Render Dashboard -> New -> Blueprint -> 选中本仓库
+# 参考: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: teaching-management-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # 前端 URL 填 Vercel 部署后的域名, 支持逗号分隔多域名
+      - key: CLIENT_ORIGIN
+        sync: false
+      # 从 Neon / Render PG 复制的完整连接串 (含 sslmode=require)
+      - key: DATABASE_URL
+        sync: false
+      # 运行 `cd server && npm run keys:genb64` 生成, 粘到 env
+      - key: JWT_PRIVATE_KEY_B64
+        sync: false
+      - key: JWT_PUBLIC_KEY_B64
+        sync: false
+      # node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      - key: FIELD_ENCRYPTION_KEY
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_ISSUER
+        value: teaching-management-system
+      - key: JWT_AUDIENCE
+        value: teaching-management-client
